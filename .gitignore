@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+.pnp/
+.pnp.js
+
+# Build output
+dist/
+build/
+.next/
+out/
+*.tsbuildinfo
+
+# Secrets — never commit real values, see .env.example
+.env
+.env.*
+!.env.example
+
+# Local media + generated artifacts
+uploads/
+renders/
+*.mp4
+*.mov
+*.wav
+
+# Logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
