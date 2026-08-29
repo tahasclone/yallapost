@@ -10,7 +10,7 @@ This agent watches a creator's world, proposes three topics with the evidence be
 
 The four stages run as turns of one TrueForge session, driven from our own UI: agent cards for Scout, Producer, Editor, and Publisher show live state, and the operator acts between stages (picking a topic, uploading the clip, approving the post). The pipeline agent's instructions are version-controlled at [agents/pipeline.md](agents/pipeline.md); the standalone scout variant lives at [agents/scout.md](agents/scout.md).
 
-In SCOUT, the agent fans out one subagent per judgment-heavy source (Instagram, X, searches — 7 for the default watchlist, each budgeted to 2 tool calls), each returning a compact summary instead of raw rows. RSS needs no subagents: one `fetch_feeds` call fetches every feed concurrently. All fetching goes through tools: Bright Data's MCP tools for Instagram, X, and web search, and our feed tools for RSS. The sandbox never touches the network; clustering and recency-weighted velocity run there as agent-written Python over data the tools fetched, tuned to the early-stage startup and venture beat, and the top three clusters go to `save_topics` with real URLs and timestamps as evidence. A source that fails is reported as failed; nothing backfills it — in the UI, a failed tool marks the owning agent card blocked with the tool name and message.
+In SCOUT, the agent fans out one subagent per judgment-heavy source (Instagram, X, searches: 7 for the default watchlist, each budgeted to 2 tool calls), each returning a compact summary instead of raw rows. RSS needs no subagents: one `fetch_feeds` call fetches every feed concurrently. All fetching goes through tools: Bright Data's MCP tools for Instagram, X, and web search, and our feed tools for RSS. The sandbox never touches the network; clustering and recency-weighted velocity run there as agent-written Python over data the tools fetched, tuned to the early-stage startup and venture beat, and the top three clusters go to `save_topics` with real URLs and timestamps as evidence. A source that fails is reported as failed; nothing backfills it. In the UI, a failed tool marks the owning agent card blocked with the tool name and message.
 
 **PRODUCE.** For the chosen topic, writes a script broken into beats and generates an image per beat.
 
@@ -100,7 +100,7 @@ One thing to watch: TrueForge's built-in `ask_user_question` tool pauses with `t
 
 Node 22.14 or newer. Earlier 22.x releases segfault on startup: TrueForge depends on `better-sqlite3` 13, whose prebuilt binary needs a newer Node-API than Node 22.12 ships, and the crash gives no useful error. `.nvmrc` pins 22.23.2.
 
-ffmpeg and ffprobe on PATH (`brew install ffmpeg`) — `render_video` shells out to them.
+ffmpeg and ffprobe on PATH (`brew install ffmpeg`), because `render_video` shells out to them.
 
 **1. Start TrueForge.**
 
@@ -114,7 +114,7 @@ Open http://localhost:8790. The env var raises TrueForge's per-turn execution ca
 
 **3. Connect a sandbox.** Settings → Sandbox providers, choose Daytona, and add a Daytona API key. The agent needs somewhere isolated to run the code it writes; scout's clustering step executes there.
 
-**3b. Connect Bright Data.** Settings → Connectors, add the Bright Data MCP server (`https://mcp.brightdata.com/mcp`) with your API token. The `Authorization` header value must be `Bearer <token>` — the word Bearer, a space, then the token. A bare token gets 401 on every call while the connector still shows "authenticated". Scout's Instagram, X, and search subagents run on its tools; without it those sources report as failed and only RSS produces items.
+**3b. Connect Bright Data.** Settings → Connectors, add the Bright Data MCP server (`https://mcp.brightdata.com/mcp`) with your API token. The `Authorization` header value must be `Bearer <token>`: the word Bearer, a space, then the token. A bare token gets 401 on every call while the connector still shows "authenticated". Scout's Instagram, X, and search subagents run on its tools; without it those sources report as failed and only RSS produces items.
 
 **4. Start this MCP server.**
 
@@ -125,7 +125,7 @@ cp .env.example .env
 npm run dev
 ```
 
-It listens on `http://127.0.0.1:8791/mcp`, loopback only. In `mcp-server/.env`, set `OPENAI_API_KEY` — `transcribe` uses it for Whisper and the EDIT stage blocks without it. The port and `MCP_AUTH_TOKEN` are optional.
+It listens on `http://127.0.0.1:8791/mcp`, loopback only. In `mcp-server/.env`, set `OPENAI_API_KEY`; `transcribe` uses it for Whisper and the EDIT stage blocks without it. The port and `MCP_AUTH_TOKEN` are optional.
 
 For beat images, authenticate the Higgsfield CLI once on this machine:
 
@@ -166,4 +166,4 @@ Qodo raised four findings against the human approval gate, two High and two Medi
 
 All four were accepted and fixed in [`fb8a5eb`](https://github.com/tahasclone/yallapost/commit/fb8a5eb), inside the same PR before merge. That commit message records the reasoning for each change, including two related bugs the review surfaced indirectly: nothing loaded a `.env` for the MCP server either, and copying either `.env.example` defined every key as an empty string, which `??` does not treat as unset.
 
-The PR history on #2 shows the review and the fix commit against it, in that order, before the merge. Later PRs continued the pattern: Qodo's review of the scout work caught a prompt-to-schema field mismatch (`published_at` vs `observed_at`) and an SSRF hole in the feed fetcher, both fixed and re-reviewed before merge — the threads on each PR record what was found and what changed. The follow-up-review requirement is met by the PRs that followed: Qodo reviews every PR on this repository, so each subsequent PR (this one included) carries a fresh review of the fixed code, and its threads record what was found, what changed, and what was dismissed with reasoning.
+The PR history on #2 shows the review and the fix commit against it, in that order, before the merge. Later PRs continued the pattern: Qodo's review of the scout work caught a prompt-to-schema field mismatch (`published_at` vs `observed_at`) and an SSRF hole in the feed fetcher, both fixed and re-reviewed before merge; the threads on each PR record what was found and what changed. The follow-up-review requirement is met by the PRs that followed: Qodo reviews every PR on this repository, so each subsequent PR (this one included) carries a fresh review of the fixed code, and its threads record what was found, what changed, and what was dismissed with reasoning.
