@@ -8,7 +8,9 @@ This agent watches a creator's world, proposes three topics with the evidence be
 
 **SCOUT.** Reads a watchlist of Instagram and X handles, keyword searches, and RSS feeds, clusters what it finds, and computes velocity per cluster. It surfaces three topics, each carrying the posts it was built from: which account, what time, how fast it is moving. A topic without evidence never reaches the creator.
 
-Scout is the first real stage. The agent fans out one subagent per source, each returning a compact summary instead of raw rows. All fetching goes through tools: Bright Data's MCP tools for Instagram, X, and web search, and our `fetch_feed` tool for RSS. The sandbox never touches the network; clustering and recency-weighted velocity run there as agent-written Python over data the tools fetched, tuned to the early-stage startup and venture beat, and the top three clusters go to `save_topics` with real URLs and timestamps as evidence. A source that fails is reported as failed; nothing backfills it. The agent's instructions are version-controlled at [agents/scout.md](agents/scout.md).
+The four stages run as turns of one TrueForge session, driven from our own UI: agent cards for Scout, Producer, Editor, and Publisher show live state, and the operator acts between stages (picking a topic, uploading the clip, approving the post). The pipeline agent's instructions are version-controlled at [agents/pipeline.md](agents/pipeline.md); the standalone scout variant lives at [agents/scout.md](agents/scout.md).
+
+In SCOUT, the agent fans out one subagent per judgment-heavy source (Instagram, X, searches — 7 for the default watchlist, each budgeted to 2 tool calls), each returning a compact summary instead of raw rows. RSS needs no subagents: one `fetch_feeds` call fetches every feed concurrently. All fetching goes through tools: Bright Data's MCP tools for Instagram, X, and web search, and our feed tools for RSS. The sandbox never touches the network; clustering and recency-weighted velocity run there as agent-written Python over data the tools fetched, tuned to the early-stage startup and venture beat, and the top three clusters go to `save_topics` with real URLs and timestamps as evidence. A source that fails is reported as failed; nothing backfills it — in the UI, a failed tool marks the owning agent card blocked with the tool name and message.
 
 **PRODUCE.** For the chosen topic, writes a script broken into beats and generates an image per beat.
 
@@ -44,18 +46,20 @@ TrueForge itself runs from `npx` and is never vendored into this repo.
 | Tool | Purpose |
 | --- | --- |
 | `get_watchlist()` | Returns the handles, keyword searches, and RSS feeds to monitor. The first call of a SCOUT run. |
-| `fetch_feed({ url })` | Fetches and parses one RSS/Atom feed. Real implementation; the MCP server has network, the sandbox does not. |
+| `fetch_feed({ url })` | Fetches and parses one RSS/Atom feed. Watchlist URLs only, no redirects, validated XML, 5MB body cap. |
+| `fetch_feeds()` | Fetches every watchlist feed concurrently in one call, one ok/failed entry per feed. Exists so RSS needs no subagents. |
+| `generate_image({ prompt, beat_id? })` | Generates one beat image via the Higgsfield CLI. Fails with the remedy when the CLI is missing or unauthenticated. |
 | `save_topics({ topics })` | Persists trending topics with their evidence. Returns `{ saved, ids }`. |
 | `save_package({ topic_id, script, image_urls })` | Stores a script and its images against a topic. Returns `{ package_id }`. |
-| `transcribe({ video_path })` | Turns an uploaded clip into timestamped segments. |
-| `render_video({ edl })` | Renders a video from an EDL. Returns `{ output_path, duration_seconds }`. |
+| `transcribe({ video_path })` | Whisper transcription of an uploaded clip into timestamped segments. Needs `OPENAI_API_KEY` in `mcp-server/.env`; fails naming that key otherwise. |
+| `render_video({ edl })` | Real ffmpeg render: cuts, concatenation, per-beat image overlays, captions burned in. Returns the real `{ output_path, duration_seconds }`. |
 | `publish_post({ platform, video_path, caption })` | Publishes. Requires human approval. |
 
 Every tool declares an output schema, and the MCP SDK validates each response against it, so a tool that drifts from its contract fails on the spot.
 
-### Stub status
+### Real vs stubbed
 
-`get_watchlist` serves real configuration from `mcp-server/src/watchlist.ts`, `fetch_feed` really fetches, and the SCOUT flow behind the Scout button is real. The remaining five tools return fixture data. The shapes are final, the implementations are not. Each stub body carries a `// TODO:` naming what replaces it, and the fixtures live in one file, `mcp-server/src/fixtures.ts`, so they are easy to find and delete. The point of this stage is proving the agent loop runs end to end before any real service is wired in.
+Every tool is a real implementation except `publish_post`, which returns a fake post URL after the approval gate; wiring real platform tokens is out of scope for the hackathon. Two real tools need credentials to function and fail honestly naming the remedy until they get them: `transcribe` (Whisper key) and `generate_image` (Higgsfield CLI login). Captions are rendered as PNG strips via sharp and overlaid, because Homebrew's ffmpeg ships without libass or freetype and so has no `subtitles` or `drawtext` filter.
 
 ## Where the approval gate sits
 
@@ -96,6 +100,8 @@ One thing to watch: TrueForge's built-in `ask_user_question` tool pauses with `t
 
 Node 22.14 or newer. Earlier 22.x releases segfault on startup: TrueForge depends on `better-sqlite3` 13, whose prebuilt binary needs a newer Node-API than Node 22.12 ships, and the crash gives no useful error. `.nvmrc` pins 22.23.2.
 
+ffmpeg and ffprobe on PATH (`brew install ffmpeg`) — `render_video` shells out to them.
+
 **1. Start TrueForge.**
 
 ```bash
@@ -108,20 +114,28 @@ Open http://localhost:8790. The env var raises TrueForge's per-turn execution ca
 
 **3. Connect a sandbox.** Settings → Sandbox providers, choose Daytona, and add a Daytona API key. The agent needs somewhere isolated to run the code it writes; scout's clustering step executes there.
 
-**3b. Connect Bright Data.** Settings → Connectors, add the Bright Data MCP server (`https://mcp.brightdata.com/mcp`) with your API token. Scout's Instagram, X, and search subagents run on its tools; without it those sources report as failed and only RSS produces items.
+**3b. Connect Bright Data.** Settings → Connectors, add the Bright Data MCP server (`https://mcp.brightdata.com/mcp`) with your API token. The `Authorization` header value must be `Bearer <token>` — the word Bearer, a space, then the token. A bare token gets 401 on every call while the connector still shows "authenticated". Scout's Instagram, X, and search subagents run on its tools; without it those sources report as failed and only RSS produces items.
 
 **4. Start this MCP server.**
 
 ```bash
 cd mcp-server
 npm install
-cp .env.example .env   # optional: both keys have defaults
+cp .env.example .env
 npm run dev
 ```
 
-It listens on `http://127.0.0.1:8791/mcp`, loopback only. Edit `mcp-server/.env` to change the port or set `MCP_AUTH_TOKEN`.
+It listens on `http://127.0.0.1:8791/mcp`, loopback only. In `mcp-server/.env`, set `OPENAI_API_KEY` — `transcribe` uses it for Whisper and the EDIT stage blocks without it. The port and `MCP_AUTH_TOKEN` are optional.
 
-**5. Register it with TrueForge.** Settings → Connectors, add an MCP server by URL, and point it at `http://127.0.0.1:8791/mcp` with transport `streamable-http`. The six tools appear in the Tools menu once it connects.
+For beat images, authenticate the Higgsfield CLI once on this machine:
+
+```bash
+higgsfield auth login
+```
+
+Until then `generate_image` fails naming that command, and the Producer continues without images rather than substituting placeholders.
+
+**5. Register it with TrueForge.** Settings → Connectors, add an MCP server by URL, and point it at `http://127.0.0.1:8791/mcp` with transport `streamable-http`. The nine tools appear in the Tools menu once it connects.
 
 **6. Run the Next.js app.**
 
@@ -136,7 +150,7 @@ Edit `web/.env.local`: set `TRUEFORGE_MCP_SERVER_NAME` to whatever you named the
 
 Each project keeps its own env file. Next.js only reads env files from the Next project directory, so a `.env` at the repository root would be ignored here.
 
-Open http://localhost:3000 and click "Run daily cycle".
+Open http://localhost:3000 and click "Run today's scout", then follow the flow: pick a topic, send to Producer, upload your clip, send to Editor, send to Publisher, and decide at the gate.
 
 ## Credits
 
@@ -152,4 +166,4 @@ Qodo raised four findings against the human approval gate, two High and two Medi
 
 All four were accepted and fixed in [`fb8a5eb`](https://github.com/tahasclone/yallapost/commit/fb8a5eb), inside the same PR before merge. That commit message records the reasoning for each change, including two related bugs the review surfaced indirectly: nothing loaded a `.env` for the MCP server either, and copying either `.env.example` defined every key as an empty string, which `??` does not treat as unset.
 
-The PR history on #2 shows the review and the fix commit against it, in that order, before the merge. The follow-up-review requirement is met by the PRs that followed: Qodo reviews every PR on this repository, so each subsequent PR (this one included) carries a fresh review of the fixed code, and its threads record what was found, what changed, and what was dismissed with reasoning.
+The PR history on #2 shows the review and the fix commit against it, in that order, before the merge. Later PRs continued the pattern: Qodo's review of the scout work caught a prompt-to-schema field mismatch (`published_at` vs `observed_at`) and an SSRF hole in the feed fetcher, both fixed and re-reviewed before merge — the threads on each PR record what was found and what changed. The follow-up-review requirement is met by the PRs that followed: Qodo reviews every PR on this repository, so each subsequent PR (this one included) carries a fresh review of the fixed code, and its threads record what was found, what changed, and what was dismissed with reasoning.
