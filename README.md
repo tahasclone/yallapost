@@ -33,7 +33,7 @@ TrueForge is the agent harness. It runs the agent loop, manages context, execute
 Two pieces live here:
 
 - `mcp-server/` is an HTTP MCP server exposing our app's actions as tools the agent can call.
-- The Next.js app drives TrueForge through `@truefoundry/trueforge-sdk` and renders its event stream. Not built yet.
+- `web/` is the Next.js app. It drives TrueForge through `@truefoundry/trueforge-sdk`, streams the harness event stream to the browser, and answers approval requests.
 
 TrueForge itself runs from `npx` and is never vendored into this repo.
 
@@ -79,6 +79,16 @@ curl -s -X POST http://127.0.0.1:8791/mcp \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list","params":{}}'
 ```
 
+### Approving from our own UI
+
+The harness pauses the turn and emits `tool.approval_required`. The app renders that as an Approve/Reject block, and answering it starts a new turn on the same session whose input is a `user.tool_approval` item rather than a user message. TrueForge is explicit that approval items must not be mixed with user messages in one turn, so the decision goes on its own.
+
+Approving runs the tool and the agent continues. Rejecting returns `User denied tool call` to the agent along with the reason, and `publish_post` never executes.
+
+A paused turn can hold more than one call awaiting approval, so the app collects every pending call and submits them together. The harness rejects a partial batch outright: "Send batch must resolve all pending tool calls awaiting user input." Each call shows its tool name and arguments, so nobody is approving an unlabelled id.
+
+One thing to watch: TrueForge's built-in `ask_user_question` tool pauses with `tool.response_required`, which is a different pause with a different resume shape. The app disables that tool (`config.askUserQuestions.enabled: false`) so the agent makes its own choices and the run reaches the approval gate instead of stopping to ask.
+
 ## Setup
 
 Node 22.14 or newer. Earlier 22.x releases segfault on startup: TrueForge depends on `better-sqlite3` 13, whose prebuilt binary needs a newer Node-API than Node 22.12 ships, and the crash gives no useful error. `.nvmrc` pins 22.23.2.
@@ -100,14 +110,28 @@ Open http://localhost:8790.
 ```bash
 cd mcp-server
 npm install
+cp .env.example .env   # optional: both keys have defaults
 npm run dev
 ```
 
-It listens on `http://127.0.0.1:8791/mcp`, loopback only. Copy `.env.example` to `.env` to change the port or set `MCP_AUTH_TOKEN`.
+It listens on `http://127.0.0.1:8791/mcp`, loopback only. Edit `mcp-server/.env` to change the port or set `MCP_AUTH_TOKEN`.
 
 **5. Register it with TrueForge.** Settings → Connectors, add an MCP server by URL, and point it at `http://127.0.0.1:8791/mcp` with transport `streamable-http`. The six tools appear in the Tools menu once it connects.
 
-**6. Run the Next.js app.** Not built yet. Until it exists, drive the agent from the TrueForge chat UI.
+**6. Run the Next.js app.**
+
+```bash
+cd web
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Edit `web/.env.local`: set `TRUEFORGE_MCP_SERVER_NAME` to whatever you named the connector in step 5, and `TRUEFORGE_MODEL` to a model you configured in step 2.
+
+Each project keeps its own env file. Next.js only reads env files from the Next project directory, so a `.env` at the repository root would be ignored here.
+
+Open http://localhost:3000 and click "Run daily cycle".
 
 ## Credits
 

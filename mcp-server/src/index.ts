@@ -3,8 +3,24 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import express, { type NextFunction, type Request, type Response } from "express";
 import { createServer } from "./server.js";
 
-const PORT = Number(process.env.MCP_PORT ?? 8791);
-const AUTH_TOKEN = process.env.MCP_AUTH_TOKEN ?? "";
+/**
+ * Read an env var, treating blank as unset.
+ *
+ * `.env.example` ships every key with an empty value, so an untouched copy
+ * defines the names as empty strings. Without this, `Number("")` is 0 and the
+ * server would bind an arbitrary free port instead of 8791.
+ */
+function env(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
+const PORT = Number(env("MCP_PORT") ?? 8791);
+const AUTH_TOKEN = env("MCP_AUTH_TOKEN") ?? "";
+
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65535) {
+  throw new Error(`MCP_PORT must be a port number between 1 and 65535, got "${process.env.MCP_PORT}"`);
+}
 
 const app = express();
 app.use(express.json({ limit: "4mb" }));
