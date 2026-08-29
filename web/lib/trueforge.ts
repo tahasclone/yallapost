@@ -1,13 +1,26 @@
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 
 /**
+ * Read an env var, treating blank as unset.
+ *
+ * `.env.example` ships every key with an empty value, so copying it to
+ * `.env.local` defines the names with empty strings. `??` only falls back on
+ * undefined, so without this an untouched copy sets baseUrl to "" and every
+ * request fails with "Failed to parse URL".
+ */
+function env(name: string): string | undefined {
+  const value = process.env[name]?.trim();
+  return value ? value : undefined;
+}
+
+/**
  * Server-side TrueForge client. The SDK talks to the local harness, and this
  * module never runs in the browser, so the token stays on the server.
  */
 export function createClient(): TrueForge {
-  const token = process.env.TRUEFORGE_API_KEY;
+  const token = env("TRUEFORGE_API_KEY");
   return new TrueForge({
-    baseUrl: process.env.TRUEFORGE_BASE_URL ?? "http://localhost:8790",
+    baseUrl: env("TRUEFORGE_BASE_URL") ?? "http://localhost:8790",
     timeoutInSeconds: 600,
     ...(token ? { token } : {}),
   });
@@ -26,7 +39,7 @@ export function createClient(): TrueForge {
 export function agentSpec() {
   return {
     model: {
-      name: process.env.TRUEFORGE_MODEL ?? "anthropic/claude-sonnet-5",
+      name: env("TRUEFORGE_MODEL") ?? "anthropic/claude-sonnet-5",
     },
     config: {
       // Without this the agent reaches the last step, calls the built-in
@@ -41,7 +54,7 @@ export function agentSpec() {
     mcpServers: [
       {
         // Name of the connector in TrueForge Settings -> Connectors.
-        name: process.env.TRUEFORGE_MCP_SERVER_NAME ?? "yallapost2",
+        name: env("TRUEFORGE_MCP_SERVER_NAME") ?? "yallapost2",
         preload: true,
       },
     ],

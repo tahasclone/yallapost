@@ -85,6 +85,8 @@ The harness pauses the turn and emits `tool.approval_required`. The app renders 
 
 Approving runs the tool and the agent continues. Rejecting returns `User denied tool call` to the agent along with the reason, and `publish_post` never executes.
 
+A paused turn can hold more than one call awaiting approval, so the app collects every pending call and submits them together. The harness rejects a partial batch outright: "Send batch must resolve all pending tool calls awaiting user input." Each call shows its tool name and arguments, so nobody is approving an unlabelled id.
+
 One thing to watch: TrueForge's built-in `ask_user_question` tool pauses with `tool.response_required`, which is a different pause with a different resume shape. The app disables that tool (`config.askUserQuestions.enabled: false`) so the agent makes its own choices and the run reaches the approval gate instead of stopping to ask.
 
 ## Setup
@@ -108,10 +110,11 @@ Open http://localhost:8790.
 ```bash
 cd mcp-server
 npm install
+cp .env.example .env   # optional: both keys have defaults
 npm run dev
 ```
 
-It listens on `http://127.0.0.1:8791/mcp`, loopback only. Copy `.env.example` to `.env` to change the port or set `MCP_AUTH_TOKEN`.
+It listens on `http://127.0.0.1:8791/mcp`, loopback only. Edit `mcp-server/.env` to change the port or set `MCP_AUTH_TOKEN`.
 
 **5. Register it with TrueForge.** Settings → Connectors, add an MCP server by URL, and point it at `http://127.0.0.1:8791/mcp` with transport `streamable-http`. The six tools appear in the Tools menu once it connects.
 
@@ -120,10 +123,15 @@ It listens on `http://127.0.0.1:8791/mcp`, loopback only. Copy `.env.example` to
 ```bash
 cd web
 npm install
+cp .env.example .env.local
 npm run dev
 ```
 
-Open http://localhost:3000 and click "Run daily cycle". Set `TRUEFORGE_MCP_SERVER_NAME` to whatever you named the connector in step 5, and `TRUEFORGE_MODEL` to a model you configured in step 2.
+Edit `web/.env.local`: set `TRUEFORGE_MCP_SERVER_NAME` to whatever you named the connector in step 5, and `TRUEFORGE_MODEL` to a model you configured in step 2.
+
+Each project keeps its own env file. Next.js only reads env files from the Next project directory, so a `.env` at the repository root would be ignored here.
+
+Open http://localhost:3000 and click "Run daily cycle".
 
 ## Credits
 
