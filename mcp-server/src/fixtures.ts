@@ -1,8 +1,5 @@
 import type { z } from "zod";
-import type {
-  GetWatchlistOutputSchema,
-  TranscribeOutputSchema,
-} from "./schemas.js";
+import type { TranscribeOutputSchema } from "./schemas.js";
 
 /**
  * Hardcoded data backing the stubbed tools.
@@ -11,19 +8,6 @@ import type {
  * gets a real implementation, its fixture goes with it. If this file is empty,
  * the stubs are gone.
  */
-
-export const WATCHLIST: z.infer<typeof GetWatchlistOutputSchema> = {
-  handles: [
-    { platform: "instagram", handle: "mkbhd" },
-    { platform: "instagram", handle: "cleoabram" },
-    { platform: "x", handle: "swyx" },
-    { platform: "x", handle: "simonw" },
-  ],
-  feeds: [
-    "https://techcrunch.com/feed/",
-    "https://www.theverge.com/rss/index.xml",
-  ],
-};
 
 export const TRANSCRIPT: z.infer<typeof TranscribeOutputSchema> = {
   segments: [

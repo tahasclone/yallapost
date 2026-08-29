@@ -6,7 +6,9 @@ This agent watches a creator's world, proposes three topics with the evidence be
 
 ## The pipeline
 
-**SCOUT.** Reads a watchlist of Instagram and X handles plus RSS feeds, clusters what it finds, and computes velocity per cluster. It surfaces three topics, each carrying the posts it was built from: which account, what time, how fast it is moving. A topic without evidence never reaches the creator.
+**SCOUT.** Reads a watchlist of Instagram and X handles, keyword searches, and RSS feeds, clusters what it finds, and computes velocity per cluster. It surfaces three topics, each carrying the posts it was built from: which account, what time, how fast it is moving. A topic without evidence never reaches the creator.
+
+Scout is the first real stage. The agent fans out one subagent per source (Bright Data's MCP tools for Instagram, X, and web search; feed fetches for RSS), each returning a compact summary instead of raw rows. Clustering and recency-weighted velocity then run as agent-written Python executed in the Daytona sandbox, tuned to the early-stage startup and venture beat, and the top three clusters go to `save_topics` with real URLs and timestamps as evidence. A source that fails is reported as failed; nothing backfills it. The agent's instructions are version-controlled at [agents/scout.md](agents/scout.md).
 
 **PRODUCE.** For the chosen topic, writes a script broken into beats and generates an image per beat.
 
@@ -41,7 +43,7 @@ TrueForge itself runs from `npx` and is never vendored into this repo.
 
 | Tool | Purpose |
 | --- | --- |
-| `get_watchlist()` | Returns the handles and RSS feeds to monitor. The first call of a SCOUT run. |
+| `get_watchlist()` | Returns the handles, keyword searches, and RSS feeds to monitor. The first call of a SCOUT run. |
 | `save_topics({ topics })` | Persists trending topics with their evidence. Returns `{ saved, ids }`. |
 | `save_package({ topic_id, script, image_urls })` | Stores a script and its images against a topic. Returns `{ package_id }`. |
 | `transcribe({ video_path })` | Turns an uploaded clip into timestamped segments. |
@@ -50,9 +52,9 @@ TrueForge itself runs from `npx` and is never vendored into this repo.
 
 Every tool declares an output schema, and the MCP SDK validates each response against it, so a tool that drifts from its contract fails on the spot.
 
-### These tools are stubs
+### Stub status
 
-Every tool returns fixture data. The shapes are final, the implementations are not. Each stub body carries a `// TODO:` naming what replaces it, and the fixtures live in one file, `mcp-server/src/fixtures.ts`, so they are easy to find and delete. The point of this stage is proving the agent loop runs end to end before any real service is wired in.
+`get_watchlist` serves real configuration from `mcp-server/src/watchlist.ts`, and the SCOUT flow behind the Scout button is real. The other five tools return fixture data. The shapes are final, the implementations are not. Each stub body carries a `// TODO:` naming what replaces it, and the fixtures live in one file, `mcp-server/src/fixtures.ts`, so they are easy to find and delete. The point of this stage is proving the agent loop runs end to end before any real service is wired in.
 
 ## Where the approval gate sits
 
@@ -103,7 +105,9 @@ Open http://localhost:8790.
 
 **2. Add a model provider.** Settings → Models, pick a provider, and add your API key.
 
-**3. Connect a sandbox.** Settings → Sandbox providers, choose Daytona, and add a Daytona API key. The agent needs somewhere isolated to run the code it writes.
+**3. Connect a sandbox.** Settings → Sandbox providers, choose Daytona, and add a Daytona API key. The agent needs somewhere isolated to run the code it writes; scout's clustering step executes there.
+
+**3b. Connect Bright Data.** Settings → Connectors, add the Bright Data MCP server (`https://mcp.brightdata.com/mcp`) with your API token. Scout's Instagram, X, and search subagents run on its tools; without it those sources report as failed and only RSS produces items.
 
 **4. Start this MCP server.**
 

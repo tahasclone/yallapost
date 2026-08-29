@@ -1,5 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { stubId, TRANSCRIPT, WATCHLIST } from "./fixtures.js";
+import { stubId, TRANSCRIPT } from "./fixtures.js";
+import { WATCHLIST } from "./watchlist.js";
 import {
   GetWatchlistOutputSchema,
   PublishPostInputSchema,
@@ -46,7 +47,7 @@ export function registerTools(server: McpServer): void {
     {
       title: "Get watchlist",
       description:
-        "Return the creator handles and RSS feeds to monitor for trending topics. Call this first in the SCOUT stage to learn what to scan.",
+        "Return the creator handles, keyword searches, and RSS feeds to monitor for trending topics. Call this first in the SCOUT stage to learn what to scan.",
       inputSchema: {},
       outputSchema: GetWatchlistOutputSchema.shape,
       annotations: {
@@ -56,8 +57,8 @@ export function registerTools(server: McpServer): void {
       },
     },
     async () => {
-      // TODO: replace with a read of the creator's saved watchlist from the
-      // app database, scoped to the signed-in user.
+      // Real configuration, versioned in watchlist.ts. A per-user database
+      // read replaces this when accounts exist.
       return structured(WATCHLIST);
     },
   );

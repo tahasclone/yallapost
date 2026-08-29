@@ -27,22 +27,29 @@ export const GetWatchlistOutputSchema = z.object({
   handles: z
     .array(WatchlistHandleSchema)
     .describe("Creator accounts to monitor for emerging topics."),
+  searches: z
+    .array(z.string())
+    .describe("Keyword queries to run through web search alongside the handles."),
   feeds: z
     .array(z.string().url())
     .describe("RSS feed URLs to monitor alongside the social handles."),
 });
 
 export const EvidenceSchema = z.object({
-  platform: PlatformSchema.or(z.literal("rss")).describe(
-    "Where this piece of evidence came from.",
+  platform: PlatformSchema.or(z.enum(["rss", "web"])).describe(
+    "Where this piece of evidence came from. `web` is a search-engine result.",
   ),
   source: z
     .string()
-    .describe("Handle that posted it, or the feed title for RSS items."),
+    .describe(
+      "Handle that posted it, the feed title for RSS items, or the site name for web results.",
+    ),
   url: z.string().url().describe("Link to the specific post or article."),
   observed_at: z
     .string()
-    .describe("ISO 8601 timestamp of when the item was published."),
+    .describe(
+      "ISO 8601 timestamp of when the item was published, or when it was fetched if the source exposes no publish time.",
+    ),
 });
 
 export const TopicSchema = z.object({
