@@ -4,7 +4,11 @@ import path from "node:path";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const MAX_UPLOAD_BYTES = 500 * 1024 * 1024;
+// Whisper caps transcription at 25MB of audio, but we extract mono 16kHz
+// mp3 before sending, so the real limit is clip length, not upload size;
+// transcribe fails with a clear message if the extracted audio is too long.
+// This cap just stops absurd uploads.
+const MAX_UPLOAD_BYTES = 250 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = new Set([".mp4", ".mov", ".m4v", ".webm"]);
 
 /**

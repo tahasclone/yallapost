@@ -100,7 +100,7 @@ One thing to watch: TrueForge's built-in `ask_user_question` tool pauses with `t
 
 Node 22.14 or newer. Earlier 22.x releases segfault on startup: TrueForge depends on `better-sqlite3` 13, whose prebuilt binary needs a newer Node-API than Node 22.12 ships, and the crash gives no useful error. `.nvmrc` pins 22.23.2.
 
-ffmpeg and ffprobe on PATH (`brew install ffmpeg`), because `render_video` shells out to them.
+ffmpeg and ffprobe on PATH (`brew install ffmpeg` on macOS, the distro package elsewhere), because `render_video` and `transcribe` shell out to them. The MCP server resolves them from `FFMPEG_BIN`/`FFPROBE_BIN` if set, then common install dirs, then PATH.
 
 **1. Start TrueForge.**
 

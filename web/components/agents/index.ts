@@ -7,4 +7,4 @@ export type { Beat, PackagePanelProps } from "./PackagePanel";
 export { EdlTimeline } from "./EdlTimeline";
 export type { EdlTimelineClip, EdlTimelineProps } from "./EdlTimeline";
 export { ApprovalGate } from "./ApprovalGate";
-export type { ApprovalGateProps } from "./ApprovalGate";
+export type { ApprovalGateProps, GateCall } from "./ApprovalGate";

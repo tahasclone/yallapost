@@ -1,5 +1,7 @@
 import { execFile } from "node:child_process";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { lookup } from "node:dns/promises";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { isIP } from "node:net";
 import { mkdtemp, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -41,29 +43,105 @@ export interface Edl {
   captions?: EdlCaption[];
 }
 
-function ffmpegBin(name: "ffmpeg" | "ffprobe"): string {
-  return process.env[`${name.toUpperCase()}_BIN`] ?? `/opt/homebrew/bin/${name}`;
+/**
+ * Resolve ffmpeg/ffprobe portably: explicit env override first, then common
+ * absolute install locations, then the bare name for PATH resolution. The
+ * old default hardcoded the Apple Silicon Homebrew path and broke everywhere
+ * else.
+ */
+export function ffmpegBin(name: "ffmpeg" | "ffprobe"): string {
+  const override = process.env[`${name.toUpperCase()}_BIN`];
+  if (override) return override;
+  for (const dir of ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"]) {
+    const candidate = `${dir}/${name}`;
+    if (existsSync(candidate)) return candidate;
+  }
+  return name;
 }
 
-/** Images come from the generation step; still: http(s) only, bounded, must be an image. */
-async function downloadImage(url: string, dest: string): Promise<void> {
-  const parsed = new URL(url);
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    throw new Error(`Overlay image must be http(s), got ${parsed.protocol}`);
+function isPrivateAddress(address: string): boolean {
+  if (isIP(address) === 6) {
+    const lower = address.toLowerCase();
+    return (
+      lower === "::1" ||
+      lower === "::" ||
+      lower.startsWith("fc") ||
+      lower.startsWith("fd") ||
+      lower.startsWith("fe80") ||
+      lower.startsWith("::ffff:") // v4-mapped; conservative reject
+    );
   }
-  const response = await fetch(parsed, { signal: AbortSignal.timeout(30_000) });
+  const parts = address.split(".").map(Number);
+  const [a, b] = parts;
+  if (a === undefined || b === undefined) return true;
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) || // link-local incl. cloud metadata
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168)
+  );
+}
+
+/**
+ * Overlay URLs arrive in a model-written EDL, so treat them as hostile:
+ * http(s) only, no redirects, and the host must not resolve to loopback,
+ * private, or link-local space (cloud metadata included). DNS is checked
+ * before the fetch; a re-resolution race remains theoretically possible, but
+ * the no-redirect rule closes the common laundering path.
+ */
+async function assertPublicHttpUrl(raw: string): Promise<URL> {
+  const url = new URL(raw);
+  if (url.protocol !== "https:" && url.protocol !== "http:") {
+    throw new Error(`Overlay image must be http(s), got ${url.protocol}`);
+  }
+  const host = url.hostname;
+  const addresses = isIP(host)
+    ? [{ address: host }]
+    : await lookup(host, { all: true }).catch(() => {
+        throw new Error(`Overlay image host does not resolve: ${host}`);
+      });
+  for (const { address } of addresses) {
+    if (isPrivateAddress(address)) {
+      throw new Error(
+        `Overlay image host resolves to a private or reserved address (${address}): ${raw}`,
+      );
+    }
+  }
+  return url;
+}
+
+/** Streamed download with the byte cap enforced as bytes arrive, not after. */
+async function downloadImage(rawUrl: string, dest: string): Promise<void> {
+  const url = await assertPublicHttpUrl(rawUrl);
+  const response = await fetch(url, {
+    signal: AbortSignal.timeout(30_000),
+    redirect: "error",
+  });
   if (!response.ok) {
-    throw new Error(`Image download failed: HTTP ${response.status} for ${url}`);
+    throw new Error(`Image download failed: HTTP ${response.status} for ${rawUrl}`);
   }
   const type = response.headers.get("content-type") ?? "";
   if (!type.startsWith("image/")) {
-    throw new Error(`Overlay URL is not an image (content-type ${type}): ${url}`);
+    throw new Error(`Overlay URL is not an image (content-type ${type}): ${rawUrl}`);
   }
-  const buf = Buffer.from(await response.arrayBuffer());
-  if (buf.byteLength > MAX_IMAGE_BYTES) {
-    throw new Error(`Overlay image exceeds ${MAX_IMAGE_BYTES} bytes: ${url}`);
+  const reader = response.body?.getReader();
+  if (!reader) throw new Error(`Image response had no body: ${rawUrl}`);
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > MAX_IMAGE_BYTES) {
+      void reader.cancel();
+      throw new Error(`Overlay image exceeds ${MAX_IMAGE_BYTES} bytes: ${rawUrl}`);
+    }
+    chunks.push(value);
   }
-  writeFileSync(dest, buf);
+  writeFileSync(dest, Buffer.concat(chunks));
 }
 
 async function hasAudio(file: string): Promise<boolean> {

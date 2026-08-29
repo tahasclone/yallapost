@@ -457,30 +457,32 @@ export default function Page() {
     [consume, pending],
   );
 
-  // Resolve the pending approval's tool name and arguments for the gate.
-  const gate = useMemo(() => {
-    const call = pending[0];
-    if (!call) return null;
-    let resolved = { name: "unknown tool", args: "" };
-    if (call.sourceEventId) {
-      for (const slot of derived.slots.values()) {
-        if (slot.eventId === call.sourceEventId && slot.id === call.toolCallId) {
-          resolved = { name: slot.name, args: slot.args };
+  // Resolve every pending call's tool name and arguments for the gate. The
+  // decision applies to the whole batch, so every call must be shown.
+  const gateCalls = useMemo(() => {
+    return pending.map((call) => {
+      let resolved = { name: "unknown tool", args: "" };
+      if (call.sourceEventId) {
+        for (const slot of derived.slots.values()) {
+          if (slot.eventId === call.sourceEventId && slot.id === call.toolCallId) {
+            resolved = { name: slot.name, args: slot.args };
+          }
         }
       }
-    }
-    if (resolved.name === "unknown tool") {
-      const found = derived.byCallId.get(call.toolCallId);
-      if (found) resolved = found;
-    }
-    const args = parseJson<{ platform?: string; caption?: string; video_path?: string }>(resolved.args);
-    return {
-      toolName: resolved.name,
-      platform: args?.platform ?? "",
-      caption: args?.caption ?? "",
-      videoPath: args?.video_path,
-      rawArguments: resolved.args,
-    };
+      if (resolved.name === "unknown tool") {
+        const found = derived.byCallId.get(call.toolCallId);
+        if (found) resolved = found;
+      }
+      const args = parseJson<{ platform?: string; caption?: string; video_path?: string }>(resolved.args);
+      return {
+        toolCallId: call.toolCallId,
+        toolName: resolved.name,
+        platform: args?.platform ?? "",
+        caption: args?.caption ?? "",
+        videoSrc: args?.video_path ? `/api/media/${args.video_path}` : undefined,
+        rawArguments: resolved.args,
+      };
+    });
   }, [derived.byCallId, derived.slots, pending]);
 
   // Agent card state machine, driven by the derived tool activity.
@@ -671,13 +673,9 @@ export default function Page() {
         </section>
       ) : null}
 
-      {gate ? (
+      {gateCalls.length > 0 ? (
         <ApprovalGate
-          toolName={gate.toolName}
-          platform={gate.platform}
-          caption={gate.caption}
-          videoSrc={gate.videoPath ? `/api/media/${gate.videoPath}` : undefined}
-          rawArguments={gate.rawArguments}
+          calls={gateCalls}
           busy={busy}
           onApprove={() => void decide("allow")}
           onReject={(reason) => void decide("deny", reason)}
