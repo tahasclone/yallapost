@@ -99,10 +99,10 @@ Node 22.14 or newer. Earlier 22.x releases segfault on startup: TrueForge depend
 **1. Start TrueForge.**
 
 ```bash
-npx @truefoundry/trueforge
+SERVER_EXECUTION_TIMEOUT_SECONDS=1800 npx @truefoundry/trueforge
 ```
 
-Open http://localhost:8790.
+Open http://localhost:8790. The env var raises TrueForge's per-turn execution cap from its 600-second default; a full scout run with live social scraping can exceed 10 minutes, and hitting the cap cancels the turn with `server-execution-timeout` before topics are saved.
 
 **2. Add a model provider.** Settings → Models, pick a provider, and add your API key.
 

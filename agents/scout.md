@@ -19,11 +19,21 @@ scraped rows.
 
 Instructions to give each subagent:
 
-- Instagram or X handle: use the Bright Data tools to pull the account's
-  recent posts (the last ~24-48 hours). Prefer a structured profile/posts
-  tool if one exists for the platform; otherwise scrape the profile page.
-  Captions, hashtags, timestamps, and engagement are the signal; never
-  download or transcribe videos.
+- Instagram handle: two steps. First scrape
+  `https://www.instagram.com/<handle>/` with `scrape_as_markdown` to get the
+  post grid; each entry carries a post URL and a date ("Video by ... on
+  August 29, 2026"). Then take the ~4 newest posts from the last 48 hours
+  and fetch them all in ONE `scrape_batch` call; the post page contains the
+  real caption. Keep it to those two tool calls per handle. Use the caption as
+  the item's title/gist and the grid date as its timestamp. Captions,
+  hashtags, timestamps, and engagement are the signal; never download or
+  transcribe videos. The profile page's "May be an image of text that
+  says..." alt-text is auto-OCR, not a caption; you may use it as
+  supporting gist but the post-page caption is the primary text.
+- X handle: use Bright Data. Try `scrape_as_markdown` on
+  `https://x.com/<handle>`; if that yields no posts, fall back to
+  `search_engine` with a `from:<handle>`-style query. Same 24-48 hour
+  window.
 - Search query: use the Bright Data `search_engine` tool with the query,
   restricted to recent results where the tool allows it.
 - RSS feed: call the `fetch_feed` tool with the feed URL. It returns parsed
@@ -46,6 +56,7 @@ Each subagent must return JSON in this shape and nothing else:
       "title": "<headline or first line of the post>",
       "url": "<direct link to the post or article>",
       "published_at": "<ISO 8601; the fetch time if the source shows no publish time>",
+      "item_source": "<who published it: the handle, the feed title (fetch_feed returns it per item), or the site name for search results>",
       "gist": "<one sentence: what it says and why it matters to the startup/VC beat>"
     }
   ]
@@ -68,10 +79,13 @@ execute a Python script that:
    (pre-seed, seed, Series A), YC batch tags, acquisition and shutdown
    language. Generic tech words (AI, app, launch) are weak signals on their
    own and must not form clusters by themselves.
-3. For each cluster, counts distinct sources and computes a recency-weighted
-   velocity: items per hour over the window, weighting the newest items
-   highest. Clusters spanning more sources outrank single-source clusters at
-   equal item counts.
+3. For each cluster, counts distinct sources and computes velocity to match
+   what the schema promises: mentions per hour over the last 24 hours.
+   Concretely: velocity = (recency-weighted count of the cluster's items
+   whose published_at falls inside the trailing 24 hours) / 24. Items aged
+   24-48 hours may still bind a cluster together, but they contribute zero
+   to velocity. Clusters spanning more sources outrank single-source
+   clusters at equal item counts.
 4. Ranks clusters and prints the top 3 as JSON: title, member items, distinct
    source count, velocity.
 
@@ -84,9 +98,13 @@ Call `save_topics` with the top 3 clusters mapped to the topic schema:
 
 - `title` and `summary`: yours to write, grounded in the cluster's items.
 - `velocity`: the number the script computed.
-- `evidence`: the cluster's member items, using each item's real `url` and
-  `published_at` from the subagent results. Platform is `instagram`, `x`,
-  `rss`, or `web` (search results).
+- `evidence`: the cluster's member items, mapped field by field to the tool's
+  schema — the names differ from your subagent shape and a literal copy will
+  fail validation:
+  - `platform` = the subagent's `kind` (`instagram`, `x`, `rss`, or `web`)
+  - `source` = the item's `item_source`
+  - `url` = the item's `url`
+  - `observed_at` = the item's `published_at`
 
 ## Honesty rules
 
