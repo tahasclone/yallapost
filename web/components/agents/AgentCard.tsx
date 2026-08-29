@@ -1,7 +1,7 @@
 import Image from "next/image";
 
-import redRobot from "./assets/red-robot.jpg";
-import blueRobot from "./assets/blue-robot.jpg";
+import redRobot from "./assets/red-robot.png";
+import blueRobot from "./assets/blue-robot.png";
 import styles from "./agents.module.css";
 
 export type AgentState = "idle" | "working" | "blocked" | "done";

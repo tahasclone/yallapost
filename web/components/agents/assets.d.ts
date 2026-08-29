@@ -3,7 +3,7 @@ declare module "*.module.css" {
   export default classes;
 }
 
-declare module "*.jpg" {
+declare module "*.png" {
   const image: import("next/image").StaticImageData;
   export default image;
 }

@@ -102,12 +102,9 @@
 .figureStage_blocked { background: #d8d3c7; }
 .figureShadow { position: absolute; left: 21%; right: 21%; bottom: 32px; height: 14px; border-radius: 50%; background: rgba(41,42,39,.23); filter: blur(4px); }
 .figure {
-  position: relative; width: 72%; aspect-ratio: 0.72; overflow: hidden; border: 3px solid var(--ink);
-  border-radius: 48% 48% 16px 16px; background: #d9d4c8; box-shadow: 4px 5px 0 rgba(41,42,39,.75); transform-origin: center bottom;
+  position: relative; width: 78%; aspect-ratio: 0.7; transform-origin: center bottom;
 }
-.figureImage { object-fit: cover; }
-.figure_scout .figureImage, .figure_publisher .figureImage { object-position: 50% 43%; }
-.figure_producer .figureImage, .figure_editor .figureImage { object-position: 50% 44%; }
+.figureImage { object-fit: contain; object-position: center bottom; }
 .figure_editor { transform: rotate(2deg); }
 .figure_publisher { transform: rotate(-2deg); }
 .figureCaption { position: absolute; bottom: 9px; left: 50%; transform: translateX(-50%) rotate(-2deg); white-space: nowrap; padding: 2px 6px; background: var(--paper-bright); border: 1px solid var(--ink); font-size: 9px; font-weight: 900; }
