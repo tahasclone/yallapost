@@ -36,6 +36,12 @@ const stateLabels: Record<AgentState, string> = {
   done: "Finished",
 };
 
+const taskStatusLabels: Record<TaskStatus, string> = {
+  pending: "Pending",
+  active: "Active",
+  done: "Completed",
+};
+
 const robotByAgent = {
   Scout: redRobot,
   Producer: blueRobot,
@@ -109,6 +115,7 @@ export function AgentCard({
                 className={`${styles.taskRow} ${styles[`taskRow_${task.status}`]}`}
               >
                 <StatusMark status={task.status} />
+                <span className={styles.srOnly}>Status: {taskStatusLabels[task.status]}.</span>
                 <span className={styles.taskLabel}>{task.label}</span>
                 {task.etaSeconds !== undefined && task.status !== "done" ? (
                   <span className={styles.eta}>~{formatEta(task.etaSeconds)}</span>
@@ -140,6 +147,7 @@ export function AgentCard({
             {subagents.map((subagent) => (
               <div className={`${styles.subagentRow} ${styles[`subagentRow_${subagent.status}`]}`} key={subagent.source}>
                 <StatusMark status={subagent.status} />
+                <span className={styles.srOnly}>Status: {taskStatusLabels[subagent.status]}.</span>
                 <span>{subagent.source}</span>
                 <span className={styles.subagentResult}>
                   {subagent.status === "active" ? "scanning" : subagent.status === "pending" ? "queued" : `${subagent.itemCount ?? 0} hits`}

@@ -1,3 +1,7 @@
+"use client";
+
+import { useState } from "react";
+
 import styles from "./agents.module.css";
 
 export interface TopicEvidence {
@@ -15,6 +19,9 @@ export interface Topic {
 }
 
 export function TopicBoard({ topics }: { topics: Topic[] }) {
+  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+  const selectedTopic = topics.find((topic) => topic.id === selectedTopicId);
+
   return (
     <section className={styles.topicBoard} aria-labelledby="topics-heading">
       <header className={styles.topicBoardHeader}>
@@ -23,16 +30,19 @@ export function TopicBoard({ topics }: { topics: Topic[] }) {
           <h2 id="topics-heading">Three stories worth making today.</h2>
           <p>Each one is backed by live source evidence. Pick a direction and Producer will take it from there.</p>
         </div>
-        <div className={styles.boardNote} aria-label="Topic selection status">
-          <span>YOUR MOVE</span>
-          Choose one topic
+        <div className={styles.boardNote} aria-label="Topic selection status" aria-live="polite">
+          <span>{selectedTopic ? "TOPIC LOCKED" : "YOUR MOVE"}</span>
+          {selectedTopic ? selectedTopic.title : "Choose one topic"}
           <i aria-hidden="true">↙</i>
         </div>
       </header>
 
       <div className={styles.topicGrid}>
         {topics.map((topic, index) => (
-          <article className={styles.topicCard} key={topic.id}>
+          <article
+            className={`${styles.topicCard} ${selectedTopicId === topic.id ? styles.topicCard_selected : ""}`}
+            key={topic.id}
+          >
             <div className={styles.topicTopline}>
               <span className={styles.topicNumber}>0{index + 1}</span>
               <span className={styles.velocity}>↗ {topic.velocity}</span>
@@ -54,9 +64,18 @@ export function TopicBoard({ topics }: { topics: Topic[] }) {
               </ul>
             </div>
 
-            <button type="button" className={styles.selectButton}>
-              Select this topic
-              <span aria-hidden="true">→</span>
+            <button
+              type="button"
+              className={styles.selectButton}
+              aria-pressed={selectedTopicId === topic.id}
+              onClick={() => setSelectedTopicId(topic.id)}
+            >
+              {selectedTopicId === topic.id
+                ? "Selected for Producer"
+                : selectedTopicId
+                  ? "Choose this instead"
+                  : "Select this topic"}
+              <span aria-hidden="true">{selectedTopicId === topic.id ? "✓" : "→"}</span>
             </button>
           </article>
         ))}
