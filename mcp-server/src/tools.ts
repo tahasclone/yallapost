@@ -1,7 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { stubId, TRANSCRIPT } from "./fixtures.js";
 import { WATCHLIST } from "./watchlist.js";
+import { fetchFeed } from "./feed.js";
 import {
+  FetchFeedInputSchema,
+  FetchFeedOutputSchema,
   GetWatchlistOutputSchema,
   PublishPostInputSchema,
   PublishPostOutputSchema,
@@ -60,6 +63,27 @@ export function registerTools(server: McpServer): void {
       // Real configuration, versioned in watchlist.ts. A per-user database
       // read replaces this when accounts exist.
       return structured(WATCHLIST);
+    },
+  );
+
+  server.registerTool(
+    "fetch_feed",
+    {
+      title: "Fetch RSS/Atom feed",
+      description:
+        "Fetch one RSS or Atom feed over the network and return its parsed entries. Real implementation: the MCP server fetches, the sandbox never does. Fails honestly when the feed is unreachable or unparseable.",
+      inputSchema: FetchFeedInputSchema,
+      outputSchema: FetchFeedOutputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ url }) => {
+      // Real implementation. Errors propagate as tool errors so a dead feed
+      // shows as failed instead of returning fabricated rows.
+      return structured(await fetchFeed(url));
     },
   );
 

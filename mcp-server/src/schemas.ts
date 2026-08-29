@@ -84,6 +84,27 @@ export const SaveTopicsOutputSchema = z.object({
     .describe("IDs of the saved topics, in the same order as the input."),
 });
 
+export const FetchFeedInputSchema = {
+  url: z.string().url().describe("RSS or Atom feed URL to fetch."),
+};
+
+export const FeedItemSchema = z.object({
+  title: z.string().describe("Item headline, HTML stripped."),
+  link: z.string().describe("Direct link to the article."),
+  published_at: z
+    .string()
+    .describe("ISO 8601 publish time; the fetch time if the feed omits one."),
+  summary: z.string().describe("Item summary, HTML stripped, truncated."),
+  source: z.string().describe("Feed title this item came from."),
+});
+
+export const FetchFeedOutputSchema = z.object({
+  source: z.string().describe("Feed title, or the URL when the feed has none."),
+  url: z.string().describe("The feed URL that was fetched."),
+  fetched_at: z.string().describe("ISO 8601 time of the fetch."),
+  items: z.array(FeedItemSchema).describe("Feed entries, newest first as served."),
+});
+
 // --- PRODUCE -------------------------------------------------------------
 
 export const BeatSchema = z.object({
