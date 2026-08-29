@@ -147,4 +147,4 @@ Qodo raised four findings against the human approval gate, two High and two Medi
 
 All four were accepted and fixed in [`fb8a5eb`](https://github.com/tahasclone/yallapost/commit/fb8a5eb), inside the same PR before merge. That commit message records the reasoning for each change, including two related bugs the review surfaced indirectly: nothing loaded a `.env` for the MCP server either, and copying either `.env.example` defined every key as an empty string, which `??` does not treat as unset.
 
-The PR history shows the review and the fix commit against it, in that order, before the merge.
+The PR history on #2 shows the review and the fix commit against it, in that order, before the merge. The follow-up-review requirement is met by the PRs that followed: Qodo reviews every PR on this repository, so each subsequent PR (this one included) carries a fresh review of the fixed code, and its threads record what was found, what changed, and what was dismissed with reasoning.
