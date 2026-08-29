@@ -141,4 +141,10 @@ Built on [TrueForge](https://github.com/truefoundry/trueforge), TrueFoundry's op
 
 ## Qodo Code Review Evidence
 
-TODO before submission. This section needs a link to at least one merged PR containing meaningful hackathon code, one or two lines on what Qodo found and what we changed or dismissed with reasoning, and the PR history showing both the Qodo review and the follow-up review.
+**Merged PR: [#2 — drive TrueForge from our own UI with a working approval gate](https://github.com/tahasclone/yallapost/pull/2)**
+
+Qodo raised four findings against the human approval gate, two High and two Medium. The most serious one was that our UI answered only the first pending tool call. A paused turn can hold several, and the harness rejects a partial batch with `422: Send batch must resolve all pending tool calls awaiting user input`. We reproduced it by having the model emit two `publish_post` calls in one message, then changed the UI to collect every pending call and submit the decisions together. Qodo also flagged that the approval panel showed a bare tool-call id, so an operator was approving an unlabelled action; the panel now renders each call's tool name and arguments, which meant reconstructing them from streamed `model.message.delta` fragments.
+
+All four were accepted and fixed in [`fb8a5eb`](https://github.com/tahasclone/yallapost/commit/fb8a5eb), inside the same PR before merge. That commit message records the reasoning for each change, including two related bugs the review surfaced indirectly: nothing loaded a `.env` for the MCP server either, and copying either `.env.example` defined every key as an empty string, which `??` does not treat as unset.
+
+The PR history shows the review and the fix commit against it, in that order, before the merge.
