@@ -95,6 +95,8 @@ function stripHtml(html: string): string {
     .replace(/&gt;/g, ">")
     .replace(/&#0?39;|&apos;/g, "'")
     .replace(/&quot;/g, '"')
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([0-9a-fA-F]+);/g, (_, code: string) => String.fromCodePoint(parseInt(code, 16)))
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -201,4 +203,32 @@ export async function fetchFeed(rawUrl: string): Promise<FetchedFeed> {
   }
 
   throw new Error(`Feed at ${url.href} is neither RSS 2.0 nor Atom`);
+}
+
+export interface FeedResult {
+  url: string;
+  status: "ok" | "failed";
+  error?: string;
+  feed?: FetchedFeed;
+}
+
+/**
+ * Fetch every watchlist feed concurrently in one call. Exists so the main
+ * agent does not need one subagent (and its LLM round-trips) per feed: the
+ * output is already structured, and this returns in seconds.
+ */
+export async function fetchAllFeeds(): Promise<FeedResult[]> {
+  return Promise.all(
+    WATCHLIST.feeds.map(async (url): Promise<FeedResult> => {
+      try {
+        return { url, status: "ok", feed: await fetchFeed(url) };
+      } catch (error) {
+        return {
+          url,
+          status: "failed",
+          error: error instanceof Error ? error.message : String(error),
+        };
+      }
+    }),
+  );
 }

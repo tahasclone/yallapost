@@ -113,3 +113,41 @@ export function scoutAgentSpec() {
     ],
   };
 }
+
+/**
+ * The full pipeline agent: SCOUT -> PRODUCE -> EDIT -> PUBLISH across turns
+ * of one session, instructions at agents/pipeline.md. Full tool access; the
+ * publish gate is still enforced by publish_post's destructive annotation,
+ * not by the allowlist.
+ */
+export function pipelineAgentSpec() {
+  const candidates = [
+    path.resolve(process.cwd(), "..", "agents", "pipeline.md"),
+    path.resolve(process.cwd(), "agents", "pipeline.md"),
+  ];
+  const promptPath = candidates.find((p) => existsSync(p));
+  if (!promptPath) {
+    throw new Error(`pipeline prompt not found; looked in: ${candidates.join(", ")}`);
+  }
+
+  return {
+    model: {
+      name: env("TRUEFORGE_MODEL") ?? "anthropic/claude-sonnet-5",
+    },
+    config: {
+      askUserQuestions: { enabled: false },
+      dynamicSubAgents: { enabled: true },
+      sandbox: { enabled: true },
+    },
+    instructions: readFileSync(promptPath, "utf-8"),
+    mcpServers: [
+      {
+        name: env("TRUEFORGE_MCP_SERVER_NAME") ?? "yallapost2",
+        preload: true,
+      },
+      {
+        name: env("TRUEFORGE_BRIGHTDATA_NAME") ?? "bright-data",
+      },
+    ],
+  };
+}

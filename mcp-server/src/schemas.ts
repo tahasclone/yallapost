@@ -105,6 +105,19 @@ export const FetchFeedOutputSchema = z.object({
   items: z.array(FeedItemSchema).describe("Feed entries, newest first as served."),
 });
 
+export const FeedResultSchema = z.object({
+  url: z.string().describe("The feed URL that was attempted."),
+  status: z.enum(["ok", "failed"]).describe("Whether the fetch succeeded."),
+  error: z.string().optional().describe("Failure reason when status is failed."),
+  feed: FetchFeedOutputSchema.optional().describe("The parsed feed when status is ok."),
+});
+
+export const FetchFeedsOutputSchema = z.object({
+  results: z
+    .array(FeedResultSchema)
+    .describe("One entry per watchlist feed, ok or failed, never fabricated."),
+});
+
 // --- PRODUCE -------------------------------------------------------------
 
 export const BeatSchema = z.object({
@@ -143,6 +156,22 @@ export const SavePackageOutputSchema = z.object({
     .describe("ID of the stored package. Pass this to the EDIT stage."),
 });
 
+export const GenerateImageInputSchema = {
+  prompt: z
+    .string()
+    .min(3)
+    .describe("Visual description for the beat's image."),
+  beat_id: z
+    .string()
+    .optional()
+    .describe("Beat this image belongs to, for traceability."),
+};
+
+export const GenerateImageOutputSchema = z.object({
+  image_url: z.string().url().describe("URL of the generated image."),
+  model: z.string().describe("Model that generated it."),
+});
+
 // --- EDIT ----------------------------------------------------------------
 
 export const TranscribeInputSchema = {
@@ -176,12 +205,24 @@ export const EdlClipSchema = z.object({
     .describe("Image to overlay for this beat, if any."),
 });
 
+export const EdlCaptionSchema = z.object({
+  start: z.number().describe("Caption start in source-video seconds."),
+  end: z.number().describe("Caption end in source-video seconds."),
+  text: z.string().describe("Caption text, usually a transcript segment."),
+});
+
 export const EdlSchema = z.object({
   source_video: z.string().describe("Path to the clip the cuts are taken from."),
   clips: z
     .array(EdlClipSchema)
     .min(1)
     .describe("Ordered cuts. Clip order defines the order of the final video."),
+  captions: z
+    .array(EdlCaptionSchema)
+    .optional()
+    .describe(
+      "Transcript segments to burn in, timed against the source video; the renderer remaps them to the output timeline.",
+    ),
 });
 
 export const RenderVideoInputSchema = {
