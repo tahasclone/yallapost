@@ -91,7 +91,7 @@ export function scoutAgentSpec() {
       {
         name: env("TRUEFORGE_MCP_SERVER_NAME") ?? "yallapost2",
         preload: true,
-        enableTools: ["get_watchlist", "save_topics"],
+        enableTools: ["get_watchlist", "save_topics", "fetch_feed"],
       },
       {
         name: env("TRUEFORGE_BRIGHTDATA_NAME") ?? "bright-data",

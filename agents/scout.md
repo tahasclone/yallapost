@@ -22,10 +22,16 @@ Instructions to give each subagent:
 - Instagram or X handle: use the Bright Data tools to pull the account's
   recent posts (the last ~24-48 hours). Prefer a structured profile/posts
   tool if one exists for the platform; otherwise scrape the profile page.
+  Captions, hashtags, timestamps, and engagement are the signal; never
+  download or transcribe videos.
 - Search query: use the Bright Data `search_engine` tool with the query,
   restricted to recent results where the tool allows it.
-- RSS feed: fetch the feed URL and parse the entries. The sandbox is
-  available for fetching and parsing.
+- RSS feed: call the `fetch_feed` tool with the feed URL. It returns parsed
+  items with titles, links, publish times, and summaries.
+
+All fetching goes through tools. The sandbox has no internet access and is
+never used to fetch; do not try, and do not treat its lack of network as a
+source failure.
 
 Each subagent must return JSON in this shape and nothing else:
 
@@ -52,7 +58,9 @@ relevant returns `status: "ok"` with an empty items list.
 ## Step 3 — cluster and rank in the sandbox
 
 When the subagents are done, analyse their output with code in the sandbox,
-not in your head. Write and execute a Python script that:
+not in your head. The sandbox is for computation over data the subagents
+already fetched; write the collected items into it as a file or literal and
+execute a Python script that:
 
 1. Takes every item from every `status: "ok"` source.
 2. Groups items into topic clusters by similarity. Tune matching to the
