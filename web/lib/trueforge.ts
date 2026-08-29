@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 
 /**
@@ -56,6 +58,43 @@ export function agentSpec() {
         // Name of the connector in TrueForge Settings -> Connectors.
         name: env("TRUEFORGE_MCP_SERVER_NAME") ?? "yallapost2",
         preload: true,
+      },
+    ],
+  };
+}
+
+/**
+ * The SCOUT agent. Its system prompt is version-controlled at
+ * agents/scout.md in the repo root; failing to find it should fail the run
+ * loudly rather than scout with no instructions.
+ *
+ * The sandbox is on because clustering runs as executed code, and dynamic
+ * subagents are on for the per-source fan-out. The MCP server is restricted
+ * to the two tools scout needs, so the publish gate is not even reachable
+ * from this session.
+ */
+export function scoutAgentSpec() {
+  const promptPath = path.resolve(process.cwd(), "..", "agents", "scout.md");
+  const instructions = readFileSync(promptPath, "utf-8");
+
+  return {
+    model: {
+      name: env("TRUEFORGE_MODEL") ?? "anthropic/claude-sonnet-5",
+    },
+    config: {
+      askUserQuestions: { enabled: false },
+      dynamicSubAgents: { enabled: true },
+      sandbox: { enabled: true },
+    },
+    instructions,
+    mcpServers: [
+      {
+        name: env("TRUEFORGE_MCP_SERVER_NAME") ?? "yallapost2",
+        preload: true,
+        enableTools: ["get_watchlist", "save_topics"],
+      },
+      {
+        name: env("TRUEFORGE_BRIGHTDATA_NAME") ?? "bright-data",
       },
     ],
   };

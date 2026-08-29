@@ -155,23 +155,26 @@ export default function Page() {
     });
   }, []);
 
-  const start = useCallback(async () => {
-    setEvents([]);
-    setPending([]);
-    setDecisions({});
-    sessionId.current = null;
-    setRunning(true);
-    try {
-      await consume(await fetch("/api/run", { method: "POST" }));
-    } catch (error) {
-      setEvents((prev) => [
-        ...prev,
-        { type: "client.error", message: String(error) },
-      ]);
-    } finally {
-      setRunning(false);
-    }
-  }, [consume]);
+  const start = useCallback(
+    async (endpoint: "/api/run" | "/api/scout") => {
+      setEvents([]);
+      setPending([]);
+      setDecisions({});
+      sessionId.current = null;
+      setRunning(true);
+      try {
+        await consume(await fetch(endpoint, { method: "POST" }));
+      } catch (error) {
+        setEvents((prev) => [
+          ...prev,
+          { type: "client.error", message: String(error) },
+        ]);
+      } finally {
+        setRunning(false);
+      }
+    },
+    [consume],
+  );
 
   const submit = useCallback(
     async (chosen: Record<string, Decision>) => {
@@ -227,11 +230,23 @@ export default function Page() {
       <h1 style={{ fontSize: 18 }}>Daily Content Agent</h1>
 
       <button
-        onClick={start}
+        onClick={() => void start("/api/scout")}
+        disabled={running}
+        style={{
+          padding: "8px 14px",
+          fontSize: 14,
+          marginRight: 8,
+          cursor: running ? "wait" : "pointer",
+        }}
+      >
+        {running ? "Running..." : "Scout"}
+      </button>
+      <button
+        onClick={() => void start("/api/run")}
         disabled={running}
         style={{ padding: "8px 14px", fontSize: 14, cursor: running ? "wait" : "pointer" }}
       >
-        {running ? "Running..." : "Run daily cycle"}
+        {running ? "Running..." : "Run daily cycle (stubs)"}
       </button>
 
       {pending.length > 0 ? (
@@ -407,6 +422,16 @@ function EventBody({ event, type }: { event: Event; type: string }) {
       <pre style={{ ...pre, color: failed ? "#ff8080" : undefined }}>
         {`status: ${status}`}
         {message ? `\n${message}` : ""}
+      </pre>
+    );
+  }
+
+  if (type === "thread.created") {
+    const info = (event.agentInfo ?? event.agent_info ?? {}) as Record<string, unknown>;
+    const name = typeof info.name === "string" ? info.name : null;
+    return (
+      <pre style={{ ...pre, color: "#c58aff" }}>
+        {name ? `subagent spawned: ${name}` : JSON.stringify(event)}
       </pre>
     );
   }
