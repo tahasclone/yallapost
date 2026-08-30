@@ -18,8 +18,19 @@ export interface Topic {
   evidence: TopicEvidence[];
 }
 
-export function TopicBoard({ topics }: { topics: Topic[] }) {
-  const [selectedTopicId, setSelectedTopicId] = useState<string | null>(null);
+export interface TopicBoardProps {
+  topics: Topic[];
+  selectedTopicId?: string | null;
+  onSelect?: (topicId: string) => void;
+}
+
+export function TopicBoard({ topics, selectedTopicId: controlled, onSelect }: TopicBoardProps) {
+  const [internal, setInternal] = useState<string | null>(null);
+  const selectedTopicId = controlled !== undefined ? controlled : internal;
+  const setSelectedTopicId = (id: string) => {
+    setInternal(id);
+    onSelect?.(id);
+  };
   const selectedTopic = topics.find((topic) => topic.id === selectedTopicId);
 
   return (

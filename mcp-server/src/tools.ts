@@ -1,7 +1,17 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
-import { stubId, TRANSCRIPT } from "./fixtures.js";
+import { stubId } from "./fixtures.js";
 import { WATCHLIST } from "./watchlist.js";
+import { fetchAllFeeds, fetchFeed } from "./feed.js";
+import { generateImage } from "./images.js";
+import { renderVideo } from "./render.js";
+import { readJson, writeJson } from "./store.js";
+import { transcribe } from "./transcribe.js";
 import {
+  FetchFeedInputSchema,
+  FetchFeedOutputSchema,
+  FetchFeedsOutputSchema,
+  GenerateImageInputSchema,
+  GenerateImageOutputSchema,
   GetWatchlistOutputSchema,
   PublishPostInputSchema,
   PublishPostOutputSchema,
@@ -64,6 +74,46 @@ export function registerTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "fetch_feed",
+    {
+      title: "Fetch RSS/Atom feed",
+      description:
+        "Fetch one RSS or Atom feed over the network and return its parsed entries. Real implementation: the MCP server fetches, the sandbox never does. Fails honestly when the feed is unreachable or unparseable.",
+      inputSchema: FetchFeedInputSchema,
+      outputSchema: FetchFeedOutputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async ({ url }) => {
+      // Real implementation. Errors propagate as tool errors so a dead feed
+      // shows as failed instead of returning fabricated rows.
+      return structured(await fetchFeed(url));
+    },
+  );
+
+  server.registerTool(
+    "fetch_feeds",
+    {
+      title: "Fetch every watchlist feed",
+      description:
+        "Fetch all RSS/Atom feeds on the watchlist concurrently in one call. Returns one entry per feed, ok or failed with the reason. Use this instead of spawning one subagent per feed: the output is already structured.",
+      inputSchema: {},
+      outputSchema: FetchFeedsOutputSchema.shape,
+      annotations: {
+        readOnlyHint: true,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async () => {
+      return structured({ results: await fetchAllFeeds() });
+    },
+  );
+
+  server.registerTool(
     "save_topics",
     {
       title: "Save trending topics",
@@ -79,9 +129,13 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ topics }) => {
-      // TODO: replace with an insert into the topics table, returning real
-      // row ids and de-duplicating against topics already saved today.
+      // Persists to data/topics.json so later stages and the UI can read the
+      // saved topics; a per-user database replaces this when accounts exist.
       const ids = topics.map((_, i) => stubId("topic", i + 1));
+      writeJson("topics.json", {
+        saved_at: new Date().toISOString(),
+        topics: topics.map((t, i) => ({ id: ids[i], ...t })),
+      });
       return structured({ saved: topics.length, ids });
     },
   );
@@ -101,14 +155,40 @@ export function registerTools(server: McpServer): void {
         openWorldHint: false,
       },
     },
-    async ({ topic_id }) => {
-      // TODO: replace with an insert into the packages table, linked to
-      // topic_id, storing the script beats and the image URLs.
-      return structured({ package_id: `pkg_for_${topic_id}` });
+    async ({ topic_id, script, image_urls }) => {
+      // Persists to data/package.json so the EDIT stage and the UI can read
+      // the script beats and images for this run.
+      const package_id = `pkg_for_${topic_id}`;
+      writeJson("package.json", {
+        package_id,
+        topic_id,
+        saved_at: new Date().toISOString(),
+        script,
+        image_urls,
+      });
+      return structured({ package_id });
     },
   );
 
   // --- EDIT --------------------------------------------------------------
+
+  server.registerTool(
+    "generate_image",
+    {
+      title: "Generate beat image",
+      description:
+        "Generate one image for a script beat via Higgsfield. Real implementation: fails with the remedy when the CLI is missing or unauthenticated, never returns a placeholder.",
+      inputSchema: GenerateImageInputSchema,
+      outputSchema: GenerateImageOutputSchema.shape,
+      annotations: {
+        idempotentHint: false,
+        openWorldHint: true,
+      },
+    },
+    async ({ prompt }) => {
+      return structured(await generateImage(prompt));
+    },
+  );
 
   server.registerTool(
     "transcribe",
@@ -124,10 +204,10 @@ export function registerTools(server: McpServer): void {
         openWorldHint: true,
       },
     },
-    async () => {
-      // TODO: replace with a real speech-to-text call over the uploaded file,
-      // returning word-level timings collapsed into segments.
-      return structured(TRANSCRIPT);
+    async ({ video_path }) => {
+      // Real Whisper transcription; fails with setup instructions when
+      // OPENAI_API_KEY is absent rather than returning fixture segments.
+      return structured({ segments: await transcribe(video_path) });
     },
   );
 
@@ -145,16 +225,13 @@ export function registerTools(server: McpServer): void {
       },
     },
     async ({ edl }) => {
-      // TODO: replace with a real render (ffmpeg) that cuts source_video at
-      // each clip's source_start/source_end and overlays image_url per beat.
-      const duration = edl.clips.reduce(
-        (total, clip) => total + (clip.source_end - clip.source_start),
-        0,
-      );
-      return structured({
-        output_path: "renders/stub-render.mp4",
-        duration_seconds: Number(duration.toFixed(2)),
-      });
+      // Real ffmpeg render: cuts, concatenation, per-beat image overlays, and
+      // burned-in captions remapped from source time to the output timeline.
+      // The EDL persists only after the render succeeds, so a rejected or
+      // failed EDL never masquerades as the current cut.
+      const result = await renderVideo(edl);
+      writeJson("edl.json", { saved_at: new Date().toISOString(), edl });
+      return structured(result);
     },
   );
 

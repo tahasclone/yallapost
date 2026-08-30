@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 
@@ -74,7 +74,21 @@ export function agentSpec() {
  * from this session.
  */
 export function scoutAgentSpec() {
-  const promptPath = path.resolve(process.cwd(), "..", "agents", "scout.md");
+  // The prompt lives at the repo root, outside the Next project, so standard
+  // output tracing would not package it. Candidate paths cover `next dev`
+  // from web/ and a deployment that copies agents/ beside the server; if
+  // neither exists the run fails here with a clear message instead of
+  // scouting without instructions.
+  const candidates = [
+    path.resolve(process.cwd(), "..", "agents", "scout.md"),
+    path.resolve(process.cwd(), "agents", "scout.md"),
+  ];
+  const promptPath = candidates.find((p) => existsSync(p));
+  if (!promptPath) {
+    throw new Error(
+      `scout prompt not found; looked in: ${candidates.join(", ")}`,
+    );
+  }
   const instructions = readFileSync(promptPath, "utf-8");
 
   return {
@@ -91,7 +105,45 @@ export function scoutAgentSpec() {
       {
         name: env("TRUEFORGE_MCP_SERVER_NAME") ?? "yallapost2",
         preload: true,
-        enableTools: ["get_watchlist", "save_topics"],
+        enableTools: ["get_watchlist", "save_topics", "fetch_feed"],
+      },
+      {
+        name: env("TRUEFORGE_BRIGHTDATA_NAME") ?? "bright-data",
+      },
+    ],
+  };
+}
+
+/**
+ * The full pipeline agent: SCOUT -> PRODUCE -> EDIT -> PUBLISH across turns
+ * of one session, instructions at agents/pipeline.md. Full tool access; the
+ * publish gate is still enforced by publish_post's destructive annotation,
+ * not by the allowlist.
+ */
+export function pipelineAgentSpec() {
+  const candidates = [
+    path.resolve(process.cwd(), "..", "agents", "pipeline.md"),
+    path.resolve(process.cwd(), "agents", "pipeline.md"),
+  ];
+  const promptPath = candidates.find((p) => existsSync(p));
+  if (!promptPath) {
+    throw new Error(`pipeline prompt not found; looked in: ${candidates.join(", ")}`);
+  }
+
+  return {
+    model: {
+      name: env("TRUEFORGE_MODEL") ?? "anthropic/claude-sonnet-5",
+    },
+    config: {
+      askUserQuestions: { enabled: false },
+      dynamicSubAgents: { enabled: true },
+      sandbox: { enabled: true },
+    },
+    instructions: readFileSync(promptPath, "utf-8"),
+    mcpServers: [
+      {
+        name: env("TRUEFORGE_MCP_SERVER_NAME") ?? "yallapost2",
+        preload: true,
       },
       {
         name: env("TRUEFORGE_BRIGHTDATA_NAME") ?? "bright-data",

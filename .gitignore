@@ -34,3 +34,6 @@ yarn-error.log*
 
 # Next.js generated types
 next-env.d.ts
+
+# Pipeline state (topics, package, EDL)
+data/
