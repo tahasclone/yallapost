@@ -90,10 +90,11 @@
 .stateBadge_blocked .stateSignal { border-color: var(--paper-bright); background: var(--accent); }
 .stateBadge_done .stateSignal { background: var(--ink); }
 
-.agentBody { display: grid; grid-template-columns: minmax(110px, 0.72fr) minmax(0, 1.28fr); gap: 18px; align-items: stretch; }
+.agentBody { display: flex; flex-direction: column; gap: 14px; align-items: stretch; }
 .figureStage {
-  position: relative; min-height: 270px; display: flex; align-items: center; justify-content: center;
-  border: 2px solid var(--ink); border-radius: 46% 48% 43% 49%;
+  position: relative; width: 180px; max-width: 100%; aspect-ratio: 1 / 1; margin: 0 auto;
+  display: flex; align-items: center; justify-content: center;
+  border: 2px solid var(--ink); border-radius: 16px 22px 14px 20px;
   background: var(--accent); transform: rotate(-1deg); isolation: isolate;
 }
 .figureStage::before {
@@ -102,7 +103,7 @@
 .figureStage_blocked { background: #d8d3c7; }
 .figureShadow { position: absolute; left: 21%; right: 21%; bottom: 32px; height: 14px; border-radius: 50%; background: rgba(41,42,39,.23); filter: blur(4px); }
 .figure {
-  position: relative; width: 78%; aspect-ratio: 0.7; transform-origin: center bottom;
+  position: relative; height: 86%; aspect-ratio: 0.7; transform-origin: center bottom;
 }
 .figureImage { object-fit: contain; object-position: center bottom; }
 .figure_editor { transform: rotate(2deg); }
@@ -190,8 +191,7 @@
   .agentGrid { grid-template-columns: 1fr; }
 }
 @media (max-width: 1050px) {
-  .agentBody { grid-template-columns: 145px minmax(0,1fr); }
-  .figureStage { min-height: 245px; }
+  .figureStage { width: 172px; }
   .subagentGrid { grid-template-columns: 1fr; }
   .topicGrid { grid-template-columns: 1fr 1fr; }
   .topicCard:last-child { grid-column: 1 / -1; }
@@ -213,9 +213,8 @@
   .agentHeader { align-items: center; }
   .agentName { font-size: 26px; }
   .stateBadge { padding: 6px 7px; font-size: 9px; }
-  .agentBody { grid-template-columns: 1fr; }
-  .figureStage { min-height: 215px; }
-  .figure { width: 38%; min-width: 118px; }
+  .figureStage { width: 156px; }
+  .figure { height: 84%; }
   .blockedPanel { grid-template-columns: 1fr; }
   .blockedArrow { display: none; }
 }
