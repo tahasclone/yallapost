@@ -1,7 +1,7 @@
 "use client";
 
 import { Caveat } from "next/font/google";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
   AgentCard,
@@ -369,6 +369,7 @@ export default function Page() {
     setPickedTopic(null);
     setEditedBeats({});
     setUploadPath(null);
+    autoProduced.current = false;
     sessionId.current = null;
     void run(() => fetch("/api/pipeline/start", { method: "POST" }), "scouting", "topics_ready");
   }, [run]);
@@ -390,10 +391,32 @@ export default function Page() {
     [run],
   );
 
-  const produce = useCallback(() => {
-    if (!pickedTopic) return;
-    turn(`Run the PRODUCE stage for topic ${pickedTopic}.`, "producing", "package_ready");
-  }, [pickedTopic, turn]);
+  const produceTopic = useCallback(
+    (topicId: string) => {
+      setPickedTopic(topicId);
+      turn(`Run the PRODUCE stage for topic ${topicId}.`, "producing", "package_ready");
+    },
+    [turn],
+  );
+
+  // Auto-advance: the moment scout delivers topics, the top topic goes to the
+  // Producer without waiting for a click. Picking a different topic on the
+  // board re-produces for that one instead.
+  const autoProduced = useRef(false);
+  useEffect(() => {
+    if (
+      !autoProduced.current &&
+      !busy &&
+      phase === "topics_ready" &&
+      derived.topics.length > 0 &&
+      !derived.pkg &&
+      sessionId.current
+    ) {
+      autoProduced.current = true;
+      const first = derived.topics[0];
+      if (first) produceTopic(first.id);
+    }
+  }, [busy, derived.pkg, derived.topics, phase, produceTopic]);
 
   const upload = useCallback(async (file: File) => {
     const form = new FormData();
@@ -556,60 +579,65 @@ export default function Page() {
     derived.pkg?.beats.map((b) => ({ ...b, text: editedBeats[b.id] ?? b.text })) ?? [];
 
   return (
-    <main className={`${caveat.variable} ${styles.page ?? ""}`} style={{ maxWidth: 1080, margin: "0 auto", padding: 20 }}>
-      <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12 }}>
-        <div>
-          <h1 style={{ fontFamily: "var(--font-hand), cursive", fontSize: "2.2rem", margin: 0 }}>
-            YallaPost
-          </h1>
-          <p style={{ margin: "2px 0 0", opacity: 0.75 }}>
-            Your daily content crew: scout → produce → edit → publish, with you at the gate.
+    <main className={`${caveat.variable} ${styles.page}`}>
+      <div className={styles.pageShell}>
+        <header style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", flexWrap: "wrap", gap: 12, padding: "6px 0 18px", borderBottom: "4px solid var(--ink)" }}>
+          <div>
+            <h1 style={{ fontFamily: "var(--font-hand), cursive", fontSize: "2.4rem", margin: 0 }}>
+              YallaPost
+            </h1>
+            <p style={{ margin: "2px 0 0", opacity: 0.75 }}>
+              Your daily content crew: scout → produce → edit → publish, with you at the gate.
+            </p>
+          </div>
+          <button className={styles.runButton} disabled={busy} onClick={startScout}>
+            {phase === "idle" ? "Run today's scout" : busy && phase === "scouting" ? "Scouting…" : "Start over"}
+          </button>
+        </header>
+
+        {derived.lastError ? (
+          <p className={styles.errorLine} role="alert">
+            ✗ {derived.lastError}
           </p>
+        ) : null}
+
+        {derived.failedTools.length > 0 ? (
+          <p className={styles.errorLine} role="alert">
+            ✗ Failed tools this run:{" "}
+            {derived.failedTools.map((f) => f.tool).join(", ")} — details in the agent report below.
+          </p>
+        ) : null}
+
+        {derived.mainReport ? (
+          <details className={styles.eventLog} open={derived.failedTools.length > 0}>
+            <summary>Agent report</summary>
+            <pre>{derived.mainReport}</pre>
+          </details>
+        ) : null}
+
+        <section className={styles.agentGrid} style={{ marginTop: 24 }}>
+          {cards.map((card) => (
+            <AgentCard key={card.name} {...card} />
+          ))}
+        </section>
+
+        {/* Every stage section is always on the page; empty ones report what
+            they are waiting on instead of hiding. The page scrolls. */}
+
+        <div style={{ marginTop: 32 }}>
+          {derived.topics.length > 0 ? (
+            <>
+              <TopicBoard topics={derived.topics} selectedTopicId={pickedTopic} onSelect={(id) => { if (!busy && id !== pickedTopic) produceTopic(id); }} />
+              <p style={{ opacity: 0.7, fontSize: 13, marginTop: 8 }}>
+                The top topic went to the Producer automatically. Pick a different one to produce that instead.
+              </p>
+            </>
+          ) : (
+            <StagePlaceholder kicker="Topics" title="Waiting for topics." note={phase === "scouting" ? "Scout is sweeping the watchlist; the three stories land here the moment clustering finishes." : "Run today's scout and the three stories land here."} />
+          )}
         </div>
-        <button className={styles.runButton} disabled={busy} onClick={startScout}>
-          {phase === "idle" ? "Run today's scout" : busy && phase === "scouting" ? "Scouting…" : "Start over"}
-        </button>
-      </header>
 
-      {derived.lastError ? (
-        <p className={styles.errorLine} role="alert">
-          ✗ {derived.lastError}
-        </p>
-      ) : null}
-
-      {derived.failedTools.length > 0 ? (
-        <p className={styles.errorLine} role="alert">
-          ✗ Failed tools this run:{" "}
-          {derived.failedTools.map((f) => f.tool).join(", ")} — details in the agent report below.
-        </p>
-      ) : null}
-
-      {derived.mainReport ? (
-        <details className={styles.eventLog} open={derived.failedTools.length > 0}>
-          <summary>Agent report</summary>
-          <pre>{derived.mainReport}</pre>
-        </details>
-      ) : null}
-
-      <section style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 16, marginTop: 20 }}>
-        {cards.map((card) => (
-          <AgentCard key={card.name} {...card} />
-        ))}
-      </section>
-
-      {derived.topics.length > 0 ? (
-        <>
-          <TopicBoard topics={derived.topics} selectedTopicId={pickedTopic} onSelect={setPickedTopic} />
-          {phase === "topics_ready" || (pickedTopic && !derived.pkg) ? (
-            <button className={styles.runButton} disabled={!pickedTopic || busy} onClick={produce}>
-              {busy && phase === "producing" ? "Producer is working…" : "Send to Producer →"}
-            </button>
-          ) : null}
-        </>
-      ) : null}
-
-      {derived.pkg ? (
-        <>
+        {derived.pkg ? (
           <PackagePanel
             title={derived.pkg.title}
             beats={beatsForPanel}
@@ -620,90 +648,114 @@ export default function Page() {
                 : undefined
             }
           />
-          <div className={styles.uploadBox}>
-            <p style={{ fontFamily: "var(--font-hand), cursive", fontSize: "1.3rem", margin: "0 0 8px" }}>
-              Record your take, then drop it here.
-            </p>
-            <input
-              type="file"
-              accept="video/mp4,video/quicktime,video/x-m4v,video/webm"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) void upload(file);
-              }}
-            />
-            {uploadPath ? (
-              <>
-                <p>
-                  ✓ <code>{uploadPath}</code>
-                </p>
-                <button className={styles.runButton} disabled={busy} onClick={edit}>
-                  {busy && phase === "editing" ? "Editor is cutting…" : "Send to Editor →"}
-                </button>
-              </>
-            ) : null}
-          </div>
-        </>
-      ) : null}
+        ) : (
+          <StagePlaceholder kicker="Script package" title="Waiting for a topic." note={phase === "producing" ? "Producer is writing the beats and generating images now." : "The Producer starts automatically once topics arrive."} />
+        )}
 
-      {derived.edl ? (
-        <EdlTimeline
-          clips={derived.edl.clips}
-          captionCount={derived.edl.captionCount}
-          sourceVideo={derived.edl.sourceVideo}
-        />
-      ) : null}
-
-      {derived.render ? (
-        <section className={styles.panel}>
-          <header className={styles.panelHeader}>
-            <p className={styles.sectionKicker}>Editor rendered</p>
-            <h2>
-              {derived.render.duration.toFixed(1)}s cut, ready to review
-            </h2>
-          </header>
-          <video className={styles.videoPreview} src={`/api/media/${derived.render.outputPath}`} controls preload="metadata" />
-          {!derived.postUrl && pending.length === 0 ? (
-            <div style={{ marginTop: 12 }}>
-              <button className={styles.runButton} disabled={busy} onClick={publish}>
-                {busy && phase === "publishing" ? "Publisher is drafting…" : "Send to Publisher →"}
-              </button>
-            </div>
-          ) : null}
-        </section>
-      ) : null}
-
-      {gateCalls.length > 0 ? (
-        <ApprovalGate
-          calls={gateCalls}
-          busy={busy}
-          onApprove={() => void decide("allow")}
-          onReject={(reason) => void decide("deny", reason)}
-        />
-      ) : null}
-
-      {derived.postUrl ? (
-        <section className={styles.panel}>
-          <header className={styles.panelHeader}>
-            <p className={styles.sectionKicker}>Published</p>
-            <h2>It's live.</h2>
+        <div className={styles.uploadBox}>
+          <p style={{ fontFamily: "var(--font-hand), cursive", fontSize: "1.3rem", margin: "0 0 8px" }}>
+            Record your take, then drop it here.
+          </p>
+          <input
+            type="file"
+            accept="video/mp4,video/quicktime,video/x-m4v,video/webm"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void upload(file);
+            }}
+          />
+          {uploadPath ? (
             <p>
-              <a href={derived.postUrl} target="_blank" rel="noreferrer">
-                {derived.postUrl}
-              </a>
+              ✓ <code>{uploadPath}</code>
             </p>
-          </header>
-        </section>
-      ) : null}
+          ) : (
+            <p style={{ opacity: 0.65, fontSize: 13 }}>You can upload any time; the Editor needs both the clip and the script package.</p>
+          )}
+          {uploadPath && derived.pkg ? (
+            <button className={styles.runButton} disabled={busy} onClick={edit}>
+              {busy && phase === "editing" ? "Editor is cutting…" : "Send to Editor →"}
+            </button>
+          ) : null}
+        </div>
 
-      <details className={styles.eventLog}>
-        <summary>Raw harness event stream ({events.length} events)</summary>
-        <pre>
-          {events
-            .map((e) => JSON.stringify(e))
-            .join("\n")}
-        </pre>
-      </details>
+        {derived.edl ? (
+          <EdlTimeline
+            clips={derived.edl.clips}
+            captionCount={derived.edl.captionCount}
+            sourceVideo={derived.edl.sourceVideo}
+          />
+        ) : (
+          <StagePlaceholder kicker="The cut" title="Waiting for the edit." note="Once you send a clip to the Editor, its cut decisions render here as a timeline before the video renders." />
+        )}
+
+        {derived.render ? (
+          <section className={styles.panel}>
+            <header className={styles.panelHeader}>
+              <p className={styles.sectionKicker}>Editor rendered</p>
+              <h2>
+                {derived.render.duration.toFixed(1)}s cut, ready to review
+              </h2>
+            </header>
+            <video className={styles.videoPreview} src={`/api/media/${derived.render.outputPath}`} controls preload="metadata" />
+            {!derived.postUrl && pending.length === 0 ? (
+              <div style={{ marginTop: 12 }}>
+                <button className={styles.runButton} disabled={busy} onClick={publish}>
+                  {busy && phase === "publishing" ? "Publisher is drafting…" : "Send to Publisher →"}
+                </button>
+              </div>
+            ) : null}
+          </section>
+        ) : (
+          <StagePlaceholder kicker="The render" title="Waiting for the render." note="The finished video previews here, then heads to the Publisher." />
+        )}
+
+        {gateCalls.length > 0 ? (
+          <ApprovalGate
+            calls={gateCalls}
+            busy={busy}
+            onApprove={() => void decide("allow")}
+            onReject={(reason) => void decide("deny", reason)}
+          />
+        ) : derived.postUrl ? null : (
+          <StagePlaceholder kicker="Approval gate" title="Nothing is waiting on you." note="Publishing is irreversible, so the Publisher always stops here for your approval before anything goes public." />
+        )}
+
+        {derived.postUrl ? (
+          <section className={styles.panel}>
+            <header className={styles.panelHeader}>
+              <p className={styles.sectionKicker}>Published</p>
+              <h2>It's live.</h2>
+              <p>
+                <a href={derived.postUrl} target="_blank" rel="noreferrer">
+                  {derived.postUrl}
+                </a>
+              </p>
+            </header>
+          </section>
+        ) : null}
+
+        <details className={styles.eventLog}>
+          <summary>Raw harness event stream ({events.length} events)</summary>
+          <pre>
+            {events
+              .map((e) => JSON.stringify(e))
+              .join("\n")}
+          </pre>
+        </details>
+      </div>
     </main>
+  );
+}
+
+/** A stage section that has nothing to show yet says what it is waiting on. */
+function StagePlaceholder({ kicker, title, note }: { kicker: string; title: string; note: string }) {
+  return (
+    <section className={styles.panel} style={{ opacity: 0.75 }}>
+      <header className={styles.panelHeader}>
+        <p className={styles.sectionKicker}>{kicker}</p>
+        <h2>{title}</h2>
+        <p>{note}</p>
+      </header>
+    </section>
   );
 }

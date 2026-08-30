@@ -135,8 +135,9 @@
 .subagentHeading { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 10px; }
 .subagentHeading strong { font-size: 12px; text-transform: uppercase; letter-spacing: .07em; }
 .subagentHeading span { color: var(--muted); font-size: 11px; }
-.subagentGrid { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 6px 12px; }
-.subagentRow { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; gap: 7px; align-items: center; min-width: 0; padding: 5px 0; border-bottom: 1px dashed rgba(41,42,39,.35); font-size: 12px; }
+.subagentGrid { display: grid; grid-template-columns: 1fr; gap: 4px; }
+.subagentRow { display: grid; grid-template-columns: 18px minmax(0,1fr) auto; gap: 7px; align-items: baseline; min-width: 0; padding: 5px 0; border-bottom: 1px dashed rgba(41,42,39,.35); font-size: 12px; }
+.subagentRow > span:nth-of-type(2) { min-width: 0; overflow-wrap: anywhere; line-height: 1.25; }
 .subagentRow_active { font-weight: 800; }
 .subagentResult { color: var(--muted); font-size: 10px; text-transform: uppercase; }
 
@@ -192,7 +193,6 @@
 }
 @media (max-width: 1050px) {
   .figureStage { width: 172px; }
-  .subagentGrid { grid-template-columns: 1fr; }
   .topicGrid { grid-template-columns: 1fr 1fr; }
   .topicCard:last-child { grid-column: 1 / -1; }
 }
